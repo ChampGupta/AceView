@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import FormField from "@/components/FormField";
 import { use } from "react";
 import { useRouter } from "next/navigation";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "@firebase/auth";
+import { auth } from '@/firebase/client';
+import { signIn, signUp } from "@/lib/actions/auth.action";
+
 
 const authFormSchema = (type: FormType) => {
   return z.object({
@@ -34,12 +38,34 @@ const AuthForm = ({ type }: { type: FormType }) => {
   });
 
   // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       if (type === "sign-up") {
+        const {name, email, password}=values;
+        const userCredentials=await createUserWithEmailAndPassword(auth, email, password);
+        const result=await signUp({
+          uid: userCredentials.user.uid,
+          name: name!,
+          email,
+          password,
+        })
+        if(!result?.success){
+          toast.error(result.message);
+          return;
+        }
         toast.success("Account created successfully!");
         router.push("/sign-in");
       } else {
+        const {email,password}=values;
+        const userCredentials=await signInWithEmailAndPassword(auth, email, password);
+        const idToken=await userCredentials.user.getIdToken();
+        if(!idToken){
+          toast.error('Sign in failed');
+          return;
+        }
+        await signIn({
+          email, idToken
+        })
         toast.success("Signed in successfully!");
         router.push("/");
       }
@@ -55,7 +81,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
           <Image src="/logo.svg" alt="logo" height={32} width={38} />
           <h2 className="text-primary-100">AceView</h2>
         </div>
-        <h3>Practise interview with AI</h3>
+        <h3>Practise interview with AI interviewer buddy</h3>
 
         <Form {...form}>
           <form
@@ -87,3 +113,36 @@ const AuthForm = ({ type }: { type: FormType }) => {
 };
 
 export default AuthForm;
+
+// async function signIn({ email, idToken }: { email: string; idToken: string }) {
+//   try {
+//     const response = await axios.post("/api/auth/sign-in", {
+//       email,
+//       idToken,
+//     });
+//     return response.data;
+//   } catch (error: any) {
+//     return {
+//       success: false,
+//       message: error.response?.data?.message || "Failed to sign in.",
+//     };
+//   }
+// }
+
+// async function signUp({ uid, name, email, password }: { uid: string; name: string; email: string; password: string; }) {
+//   try {
+//     const response = await axios.post("/api/auth/sign-up", {
+//       uid,
+//       name,
+//       email,
+//       password,
+//     });
+//     return response.data;
+//   } catch (error: any) {
+//     return {
+//       success: false,
+//       message: error.response?.data?.message || "Failed to sign up.",
+//     };
+//   }
+// }
+
